@@ -167,7 +167,18 @@ impl JsonParamType {
         // Typically, these types are already handled by checking the "type" field, but
         // we can also infer them from their characteristic fields if "type" is missing.
         if schema.contains_key("enum") {
-            return Some(Self::String);
+            // A nullable enum such as `{"enum": [null, "auto"]}` omits `type` but
+            // permits null, so it must keep coercing a literal `null` to JSON null
+            // rather than flattening to a plain `String`.
+            let nullable = schema
+                .get("enum")
+                .and_then(Value::as_array)
+                .is_some_and(|values| values.iter().any(Value::is_null));
+            return Some(if nullable {
+                Self::one_of(vec![Self::String, Self::Null])
+            } else {
+                Self::String
+            });
         }
         if schema.contains_key("items") {
             return Some(Self::array_from_schema(Some(schema)));
@@ -706,6 +717,27 @@ mod tests {
         // Non-string and schema-less params are unchanged: "null" -> null.
         assert_eq!(params.convert("count", text("null")), json!(null));
         assert_eq!(params.convert("anything", text("null")), json!(null));
+    }
+
+    #[test]
+    fn nullable_enum_param_coerces_literal_null_to_null() {
+        // An enum that omits `type` but lists `null` as a member permits null, so
+        // a literal `null` must coerce to JSON null (null outranks string), while
+        // a real enum value stays a string. A string-only enum keeps "null" as a
+        // string. This mirrors the Python `extract_types_from_schema` inference.
+        let params = ToolSchema::from_schema(&json!({
+            "type": "object",
+            "properties": {
+                "mode": { "enum": [null, "auto"] },
+                "color": { "enum": ["red", "green"] }
+            }
+        }));
+
+        assert_eq!(params.convert("mode", text("null")), json!(null));
+        assert_eq!(params.convert("mode", text("auto")), json!("auto"));
+        // String-only enum keeps the literal "null" text as a string.
+        assert_eq!(params.convert("color", text("null")), json!("null"));
+        assert_eq!(params.convert("color", text("red")), json!("red"));
     }
 
     #[test]
