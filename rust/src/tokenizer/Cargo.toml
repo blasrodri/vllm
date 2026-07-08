@@ -31,5 +31,9 @@ harness = false
 name = "tiktoken"
 harness = false
 
+[[bench]]
+name = "streaming"
+harness = false
+
 [lints]
 workspace = true
