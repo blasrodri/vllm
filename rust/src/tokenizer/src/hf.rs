@@ -193,6 +193,14 @@ impl Tokenizer for HuggingFaceTokenizer {
     fn is_special_id(&self, token_id: u32) -> bool {
         self.special_token_ids.binary_search(&token_id).is_ok()
     }
+
+    fn decode_is_context_independent(&self) -> bool {
+        // Only the pure byte-level backend decodes each token to fixed bytes
+        // regardless of position. The generic fastokens and HuggingFace
+        // backends may wrap context-dependent decoders (Metaspace, etc.), so
+        // conservatively treat them as context-dependent.
+        matches!(self.backend, Backend::FastokensByteLevel(_))
+    }
 }
 
 #[cfg(test)]

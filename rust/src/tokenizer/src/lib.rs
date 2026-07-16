@@ -45,6 +45,19 @@ pub trait Tokenizer: Send + Sync {
         false
     }
 
+    /// Whether `decode` is context-independent: every token decodes to the same
+    /// bytes regardless of the surrounding tokens.
+    ///
+    /// This holds for byte-level tokenizers but not for context-dependent
+    /// decoders (e.g. Metaspace/SentencePiece), where a token's rendering
+    /// depends on its position — a leading-space token decodes differently in
+    /// isolation than mid-sequence. The incremental decoder only reuses a
+    /// decoded suffix as the prefix seed when this is `true`; otherwise it must
+    /// decode from the full prompt. Defaults to `false` (the safe choice).
+    fn decode_is_context_independent(&self) -> bool {
+        false
+    }
+
     /// Create a stateful incremental decoder primed with the given prompt
     /// tokens.
     ///
